@@ -1,0 +1,1 @@
+# A node-red node to facilitate guaranteed delivery of messages (upload, email, MQTT etc) across a network

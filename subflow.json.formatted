@@ -1,0 +1,401 @@
+{
+    "id": "149380c1.63e107",
+    "type": "subflow",
+    "name": "Guaranteed delivery",
+    "info": "A node-red node to facilitate guaranteed delivery of messages (upload, email, MQTT etc) across a network
+
+This node facilitates the guaranteed delivery of data across a network or via some other route,
+where it may not always be possible to send the data, due to network outage or server not available.
+If a send fails then messages are automatically buffered in a queue and the send is retried later.
+Messages are guaranteed to be sent in the order they are received.
+If persistent context is configured then the queue can be retained there so that the queue will survive
+a node-red restart or power down.
+
+To use the node it should ideally possible to derive a success message when the data has been successfully delivered, and a fail message if it fails.
+In some circumstances it may not be possible to know that it has failed, in which case a timeout setting can be used to tell the node that if no
+success is received within a certain time then it should assume that the send has failed.
+
+To use this node feed it messages to be delivered.  Connect the output to the nodes that deliver it (to an email node for example).
+",
+    "category": "function",
+    "in": [
+        {
+            "x": 60,
+            "y": 140,
+            "wires": [
+                {
+                    "id": "6a3f78ab.f6b8e"
+                }
+            ]
+        }
+    ],
+    "out": [
+        {
+            "x": 420,
+            "y": 140,
+            "wires": [
+                {
+                    "id": "6a3f78ab.f6b8e",
+                    "port": 0
+                }
+            ]
+        }
+    ],
+    "env": [
+        {
+            "name": "controlProperty",
+            "type": "str",
+            "value": "control",
+            "ui": {
+                "label": {
+                    "en-US": "Property for OK or FAIL"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "str",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "OKValue",
+            "type": "str",
+            "value": "OK",
+            "ui": {
+                "label": {
+                    "en-US": "Value for success"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "str",
+                        "num",
+                        "bool",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "FAILValue",
+            "type": "str",
+            "value": "FAIL",
+            "ui": {
+                "label": {
+                    "en-US": "Value for failure"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "str",
+                        "num",
+                        "bool",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "retrySecs",
+            "type": "num",
+            "value": "60",
+            "ui": {
+                "label": {
+                    "en-US": "Retry period (secs)"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "num",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "timeout",
+            "type": "num",
+            "value": "120",
+            "ui": {
+                "label": {
+                    "en-US": "Fail timeout (secs)"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "num",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "maxQueue",
+            "type": "num",
+            "value": "100",
+            "ui": {
+                "label": {
+                    "en-US": "Max messages in queue"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "str",
+                        "num",
+                        "env"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "contextStore",
+            "type": "str",
+            "value": "default",
+            "ui": {
+                "label": {
+                    "en-US": "Context Store to use"
+                },
+                "type": "input",
+                "opts": {
+                    "types": [
+                        "str",
+                        "env"
+                    ]
+                }
+            }
+        }
+    ],
+    "meta": {
+        "module": "@colinl/guaranteed-delivery",
+        "type": "guaranteed-delivery",
+        "version": "0.0.1",
+        "author": "Colin Law",
+        "desc": "Guaranteed delivery of messages",
+        "keywords": "node-red, delivery",
+        "license": "Apache-2.0"
+    },
+    "color": "#3FADB5",
+    "icon": "font-awesome/fa-long-arrow-right",
+    "status": {
+        "x": 420,
+        "y": 80,
+        "wires": [
+            {
+                "id": "ed779289.25b5d8",
+                "port": 0
+            }
+        ]
+    },
+    "flow": [
+        {
+            "id": "6a3f78ab.f6b8e",
+            "type": "function",
+            "z": "149380c1.63e107",
+            "name": "State machine",
+            "func": "let store = env.get(\"contextStore\")
+if (store === \"default\") store = null
+// These are initialised in On Start
+let stat = flow.get(\"stat\", store)
+if (!stat) node.warn(`stat: ${JSON.stringify(stat)}, store: ${store}`)
+let tickID = flow.get(\"tickID\")
+
+// can't use a switch here I think as need to compare against env value
+const control = msg[env.get(\"controlProperty\")]
+
+// if this is OK or FAIL then stop the timer if it is running
+if ( tickID && (control === env.get(\"OKValue\") || control === env.get(\"FAILValue\")) ) {
+    //node.warn(`Clearing timer`)
+    clearTimeout(tickID)
+    flow.set(\"tickID\", 0 )
+    tickID = 0
+}
+
+if (control === env.get(\"OKValue\")) {
+    handleOK(stat)
+} else if (control === env.get(\"FAILValue\")) {
+    handleFAIL(stat)
+} else if (control === \"__tick\") {
+    handleRetryTick(stat)
+} else {
+    // no valid control value so must be incoming message
+    handleMessage(msg, stat)
+}
+//node.warn(`state: ${stat.state}`)
+// decide what to do next based on the new state
+switch (stat.state) {
+    case \"initial\":
+    case \"waitingForMsg\":
+        sendMsg(stat)   // send next message if any
+        if (stat.state == \"waitingForOKFail\") {
+            // we have sent a message so start the timeout timer if required
+            // there should not be a timer running already
+            if (tickID) {
+                node.warn(`Guaranteed delivery timer already running when it should not be`)
+                clearTimeout(tickID)
+            }
+            const timeout = env.get(\"timeout\")
+            if (timeout) {
+                //node.warn(`starting timer`)
+                tickID = setTimeout( handleTimeout, timeout*1000)
+                flow.set(\"tickID\", tickID )
+            }
+        }
+        break;
+        
+    case \"waitingForRetryTick\":
+    case \"waitingForOKFail\":
+        // do nothing
+        break;
+}
+node.status( `${stat.queue.length} ${stat.state}` )
+flow.set(\"stat\", stat, store)
+return null;
+
+// Called when message to be queued is received
+function handleMessage(msg, stat) {
+    //node.warn(\"handleMessage\")
+    // push a clone onto the queue
+    stat.queue.push(RED.util.cloneMessage(msg))
+    // limit number in queue
+    const max = Number(env.get(\"maxQueue\"))
+    if (!isNaN(max) && max > 0) {
+        // max length hit, remove oldest
+        if (stat.queue.length > max) stat.queue.shift()
+    }
+    // Simulate a RetryTick event to handle any state change needed
+    handleRetryTick(stat)
+}
+
+// Called to send the next message off the queue if any, but leaves it on queue
+// If it sends a message then it starts the timeout (if any) running and returns the handle
+function sendMsg(stat) {
+    //node.warn(\"sendMsg\")
+    let thisMsg = stat.queue[0]
+    if (thisMsg) {
+        // send a clone
+        //node.warn(\"sending\")
+        node.send(RED.util.cloneMessage(thisMsg))
+        stat.state = \"waitingForOKFail\"
+    } else {
+        // nothing in queue
+        stat.state = \"waitingForMsg\"
+    }
+}
+
+// Called when OK response received
+function handleOK(stat) {
+    //node.warn(\"handleOK\")
+    // ignore if in wrong state
+    if (stat.state === \"waitingForOKFail\") {
+        // OK received so drop the top message 
+        stat.queue.shift()
+        // set the state to waiting for message, which will allow the next one to be sent
+        stat.state = \"waitingForMsg\"
+    } else {
+        node.warn(\"Guaranteed delivery ignoring unnexpected OK\")
+    }
+}
+
+// Called when FAIL response received
+function handleFAIL(stat) {
+    //node.warn(\"handleFAIL\")
+    // ignore if in wrong state
+    if (stat.state === \"waitingForOKFail\") {
+        // FAIL received so go to waiting for RetryTick state
+        stat.state = \"waitingForRetryTick\"
+    } else {
+        node.warn(\"Ignoring unnexpected FAIL\")
+    }
+}
+
+// Called when a RetryTick message is received or after a new incoming message is queued
+function handleRetryTick(stat) {
+    //node.warn(\"handleRetryTick\")
+    if (stat.state === \"waitingForRetryTick\") {
+        //node.warn(\"state to waiting\")
+        // set it to watitingForMsg in order to force send 
+        stat.state = \"waitingForMsg\"
+    }
+    // ignore for other states
+}
+
+// called when no OK or FAIL has been received after the specied timeout
+function handleTimeout() {
+    //node.warn(`handleTimeout ${stat.state}`)
+    // ignore if state not waiting for ok/fail
+    if ( stat.state === \"waitingForOKFail\" ) {
+        //node.warn(`Timeout waiting for OK/FAIL`)
+        // simulate a fail, just change the state to WaitingForRetryTick
+        stat.state = \"waitingForRetryTick\"
+        flow.set(\"stat\", stat, store)
+        node.status( `${stat.queue.length} ${stat.state}` )
+    }
+    flow.set(\"tickID\", 0 )
+    tickID = 0
+}",
+            "outputs": 1,
+            "timeout": "",
+            "noerr": 0,
+            "initialize": "// Initalise context data as appropriate
+let cStore = env.get(\"contextStore\")
+node.warn(`OnStart, cStore: ${cStore}`)
+if (cStore === \"default\") cStore = null
+let stat = flow.get(\"stat\", cStore) || {state: \"initial\", queue: []}
+// force state to initial in case we were stopped in the middle of doing something and the store is persistent
+// keep the queue obviously
+stat.state = \"initial\"
+flow.set(\"stat\", stat, cStore)
+node.warn(`checking stat saved ok: ${JSON.stringify(flow.get(\"stat\", cStore))}`)
+// clear the timout ticker in case the default store is persistent
+flow.set(\"tickID\", 0)",
+            "finalize": "",
+            "libs": [],
+            "x": 280,
+            "y": 140,
+            "wires": [
+                []
+            ]
+        },
+        {
+            "id": "602725f6.15eee4",
+            "type": "inject",
+            "z": "149380c1.63e107",
+            "name": "Retry ",
+            "props": [
+                {
+                    "p": "${controlProperty}",
+                    "v": "__tick",
+                    "vt": "str"
+                }
+            ],
+            "repeat": "${retrySecs}",
+            "crontab": "",
+            "once": false,
+            "onceDelay": 0.1,
+            "topic": "",
+            "x": 110,
+            "y": 60,
+            "wires": [
+                [
+                    "6a3f78ab.f6b8e"
+                ]
+            ]
+        },
+        {
+            "id": "ed779289.25b5d8",
+            "type": "status",
+            "z": "149380c1.63e107",
+            "name": "",
+            "scope": [
+                "6a3f78ab.f6b8e"
+            ],
+            "x": 300,
+            "y": 80,
+            "wires": [
+                []
+            ]
+        }
+    ]
+}
