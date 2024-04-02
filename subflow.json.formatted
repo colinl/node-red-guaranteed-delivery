@@ -170,7 +170,7 @@ To use this node feed it messages to be delivered.  Connect the output to the no
     "meta": {
         "module": "@colinl/guaranteed-delivery",
         "type": "guaranteed-delivery",
-        "version": "0.0.1",
+        "version": "0.0.2 Beta",
         "author": "Colin Law",
         "desc": "Guaranteed delivery of messages",
         "keywords": "node-red, delivery",
@@ -294,7 +294,7 @@ function handleOK(stat) {
         // set the state to waiting for message, which will allow the next one to be sent
         stat.state = \"waitingForMsg\"
     } else {
-        node.warn(\"Guaranteed delivery ignoring unnexpected OK\")
+        node.warn(\"Guaranteed delivery - ignoring unnexpected OK\")
     }
 }
 
@@ -306,7 +306,7 @@ function handleFAIL(stat) {
         // FAIL received so go to waiting for RetryTick state
         stat.state = \"waitingForRetryTick\"
     } else {
-        node.warn(\"Ignoring unnexpected FAIL\")
+        node.warn(\"Guaranteed delivery - ignoring unnexpected FAIL\")
     }
 }
 
@@ -340,14 +340,12 @@ function handleTimeout() {
             "noerr": 0,
             "initialize": "// Initalise context data as appropriate
 let cStore = env.get(\"contextStore\")
-node.warn(`OnStart, cStore: ${cStore}`)
 if (cStore === \"default\") cStore = null
 let stat = flow.get(\"stat\", cStore) || {state: \"initial\", queue: []}
 // force state to initial in case we were stopped in the middle of doing something and the store is persistent
 // keep the queue obviously
 stat.state = \"initial\"
 flow.set(\"stat\", stat, cStore)
-node.warn(`checking stat saved ok: ${JSON.stringify(flow.get(\"stat\", cStore))}`)
 // clear the timout ticker in case the default store is persistent
 flow.set(\"tickID\", 0)",
             "finalize": "",
