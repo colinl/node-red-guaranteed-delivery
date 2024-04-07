@@ -1,6 +1,6 @@
 {
   "name": "@colinl/node-red-guaranteed-delivery",
-  "version": "0.0.1",
+  "version": "0.0.2-Beta.1",
   "description": "A node-red node to facilitate guaranteed delivery of messages (upload, email, MQTT etc) across a network",
   "main": "index.js",
   "scripts": {
