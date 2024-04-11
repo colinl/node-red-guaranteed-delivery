@@ -9,7 +9,7 @@ To use the node it should ideally be possible to derive a success message when t
 In use, feed messages to be delivered into the node.  Connect the output to the nodes that deliver it (to an email node for example).  Then arrange for an OK message to be fed back into the node when the send succeeds, or a FAIL message to be fed back if the send fails. See below for how to build OK/FAIL messages.
 
 ### Installing
-Gereally the node should be installed using Manage Palette and searching for @colinl/node-red-guaranteed-delivery.  Alternatively it may be installed from the node-red user directory (usually ~/.node-red) using
+Generally the node should be installed using Manage Palette and searching for @colinl/node-red-guaranteed-delivery.  Alternatively it may be installed from the node-red user directory (usually ~/.node-red) using
 `npm install @colinl/node-red-guaranteed-delivery`
 
 ### Configuration
@@ -37,7 +37,7 @@ This determines which context store will be used to hold the queue.  See the doc
 
 ### Inputs
 
-If `msg.control` (or whatever property has been configured as the Control property as below) is not present in the message then the message will be passed on to the next node in the flow (such as an email node) for delivery to its destination.  If there are already messages queued then it will be added to the queue rather than being passed on.
+If `msg.control` (or whatever property has been configured as the Control property as above) is not present in the message then the message will be passed on to the next node in the flow (such as an email node) for delivery to its destination.  If there are already messages queued then it will be added to the queue rather than being passed on.
 
 If `msg.control` is present then its value should be either that configured as Value for Success or Value for Failure as described above.  
 If it is the Success value then that indicates that the message has been successfully delivered, it will be removed from the queue of waiting messages and the next one (if any) will be sent.
