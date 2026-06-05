@@ -26,7 +26,7 @@ When a message fails to be sent then after this time the node will pass it on ag
 If the node does not receive OK or FAIL after passing on a message, then after this time it will assume that it has failed.  This can be used on occasions where a timeout is the only way of knowing that it has failed, but it is also a good idea to set a value here longer than it will normally take for success or failure, in case a message gets lost.  This prevents a permanent lockup situation.  Setting this to 0 disables the timeout.
 
 ##### Max messages in queue
-If this is non-zero then it will limit the number of messages held in the queue, once the queue is full then further messages received will be discarded.  If this is set to zero then no limit will be applied.
+If this is non-zero then it will limit the number of messages held in the queue, once the queue is full then old messages will be discarded from the front of the queue as new messages are added.  If this is set to zero then no limit will be applied.
 
 ##### Context store to use
 This determines which context store will be used to hold the queue.  See the docs on [node-red-context-stores](https://nodered.org/docs/user-guide/context#context-stores). If a persistent context store is selected then the queue will be retained over a node-red restart or a power failure.
